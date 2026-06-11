@@ -643,6 +643,7 @@ class scProtVelo(VELOVI):
 
         protein = self.adata_manager.get_from_registry(REGISTRY_KEYS.X_KEY)
         rna = self.adata_manager.get_from_registry(REGISTRY_KEYS.U_KEY)
+        embedding = self.adata_manager.get_from_registry(REGISTRY_KEYS.EMBEDDING_KEY)
 
         if time_prior is not None:
             quantile_01 = np.quantile(adata.obs[time_prior], q=0.01, axis=0)
@@ -689,7 +690,7 @@ class scProtVelo(VELOVI):
             dpt_start_rna=dpt_start_rna,
             dpt_start_prot=dpt_start_prot,
             n_input=self.summary_stats["n_vars"],
-            n_dim_glue=adata.obsm["X_glue"].shape[1],
+            n_dim_glue=embedding.shape[1],
             n_hidden=n_hidden,
             n_latent=n_latent,
             n_layers=n_layers,
@@ -740,7 +741,7 @@ class scProtVelo(VELOVI):
             LayerField(REGISTRY_KEYS.X_KEY, protein_layer, is_count_data=False),
             LayerField(REGISTRY_KEYS.U_KEY, rna_layer, is_count_data=False),
             ObsmField(
-                registry_key="embedding",
+                registry_key=REGISTRY_KEYS.EMBEDDING_KEY,
                 attr_key=obsm_key,
             ),
         ]
