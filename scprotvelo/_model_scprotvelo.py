@@ -104,7 +104,6 @@ class VELOVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass):
         )
         return runner()
 
-
     @torch.no_grad()
     def get_latent_time(
         self,
@@ -296,17 +295,23 @@ class VELOVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass):
                 beta = inference_outputs["beta"]
                 kappa = inference_outputs["kappa"]
                 gamma = inference_outputs["gamma"]
-                px_pi_global = generative_outputs['px_pi_global']  # dirichlet output, different for different cells
+                px_pi_global = generative_outputs[
+                    "px_pi_global"
+                ]  # dirichlet output, different for different cells
                 pi = px_pi_global
 
-                mixture_dist_u = generative_outputs['mixture_dist_u']
-                mixture_dist_s = generative_outputs['mixture_dist_s']
+                mixture_dist_u = generative_outputs["mixture_dist_u"]
+                mixture_dist_s = generative_outputs["mixture_dist_s"]
 
-                mean_u = mixture_dist_u.component_distribution.mean  # cell x gene x states
+                mean_u = (
+                    mixture_dist_u.component_distribution.mean
+                )  # cell x gene x states
                 mean_u_rep = mean_u[:, :, 3 if self.module.model_steady_states else 1]
                 mean_u_ind = mean_u[:, :, 1 if self.module.model_steady_states else 0]
 
-                mean_s = mixture_dist_s.component_distribution.mean  # cell x gene x states
+                mean_s = (
+                    mixture_dist_s.component_distribution.mean
+                )  # cell x gene x states
                 mean_s_rep = mean_s[:, :, 3 if self.module.model_steady_states else 1]
                 mean_s_ind = mean_s[:, :, 1 if self.module.model_steady_states else 0]
 
@@ -320,10 +325,13 @@ class VELOVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass):
                 else:
                     velo_ind = alpha[:, 0] - beta[:, 0] * mean_u_ind
 
-                v = torch.stack([
-                    velo_ind,
-                    velo_rep,
-                ], dim=2)
+                v = torch.stack(
+                    [
+                        velo_ind,
+                        velo_rep,
+                    ],
+                    dim=2,
+                )
 
                 max_prob = torch.amax(pi, dim=-1)
                 max_prob = torch.stack([max_prob] * pi.shape[2], dim=2)
@@ -436,8 +444,8 @@ class VELOVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass):
                     generative_kwargs=dict(latent_dim=restrict_to_latent_dim),
                 )
 
-                mixture_dist_u = generative_outputs['mixture_dist_u']
-                mixture_dist_s = generative_outputs['mixture_dist_s']
+                mixture_dist_u = generative_outputs["mixture_dist_u"]
+                mixture_dist_s = generative_outputs["mixture_dist_s"]
 
                 probs_state = generative_outputs["pi_global"]
 
@@ -448,10 +456,18 @@ class VELOVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass):
                 states = probs_state.argmax(axis=-1).bool()
 
                 mean = mixture_dist_u.component_distribution.mean
-                fit_u = torch.where(states, mean[:, :, 3 if self.module.model_steady_states else 1], mean[:, :, 1 if self.module.model_steady_states else 0])
+                fit_u = torch.where(
+                    states,
+                    mean[:, :, 3 if self.module.model_steady_states else 1],
+                    mean[:, :, 1 if self.module.model_steady_states else 0],
+                )
 
                 mean = mixture_dist_s.component_distribution.mean
-                fit_s = torch.where(states, mean[:, :, 3 if self.module.model_steady_states else 1], mean[:, :, 1 if self.module.model_steady_states else 0])
+                fit_s = torch.where(
+                    states,
+                    mean[:, :, 3 if self.module.model_steady_states else 1],
+                    mean[:, :, 1 if self.module.model_steady_states else 0],
+                )
 
                 fit_s = fit_s[..., gene_mask]
                 fit_s = fit_s.cpu().numpy()
@@ -593,7 +609,6 @@ class VELOVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass):
 
 
 class scProtVelo(VELOVI):
-
     def __init__(
         self,
         adata: AnnData,
@@ -630,12 +645,14 @@ class scProtVelo(VELOVI):
         rna = self.adata_manager.get_from_registry(REGISTRY_KEYS.U_KEY)
 
         if time_prior is not None:
-            quantile_01 = np.quantile(adata.obs[time_prior], q=.01, axis=0)
+            quantile_01 = np.quantile(adata.obs[time_prior], q=0.01, axis=0)
             dpt_start_rna = np.median(rna[adata.obs[time_prior] <= quantile_01], axis=0)
-            dpt_start_prot = np.median(protein[adata.obs[time_prior] <= quantile_01], axis=0)
+            dpt_start_prot = np.median(
+                protein[adata.obs[time_prior] <= quantile_01], axis=0
+            )
 
-            adata.var['dpt_start_rna'] = dpt_start_rna
-            adata.var['dpt_start_prot'] = dpt_start_prot
+            adata.var["dpt_start_rna"] = dpt_start_rna
+            adata.var["dpt_start_prot"] = dpt_start_prot
         else:
             dpt_start_rna = None
             dpt_start_prot = None
@@ -672,7 +689,7 @@ class scProtVelo(VELOVI):
             dpt_start_rna=dpt_start_rna,
             dpt_start_prot=dpt_start_prot,
             n_input=self.summary_stats["n_vars"],
-            n_dim_glue=adata.obsm['X_glue'].shape[1],
+            n_dim_glue=adata.obsm["X_glue"].shape[1],
             n_hidden=n_hidden,
             n_latent=n_latent,
             n_layers=n_layers,
@@ -693,12 +710,13 @@ class scProtVelo(VELOVI):
     @classmethod
     @setup_anndata_dsp.dedent
     def setup_anndata(
-            cls,
-            adata: AnnData,
-            protein_layer: str,
-            rna_layer: str,
-            time_prior=None,
-            **kwargs,
+        cls,
+        adata: AnnData,
+        protein_layer: str,
+        rna_layer: str,
+        obsm_key: str = "X_glue",
+        time_prior=None,
+        **kwargs,
     ):
         """
         Parameters
@@ -709,6 +727,8 @@ class scProtVelo(VELOVI):
             Layer name for protein values.
         rna_layer
             Layer name for rna values.
+        obsm_key
+            Key in adata.obsm representing the embedding that is taken as input for the encoder
         time_prior
             (Optional) Obs name containing time annotations to be used as prior.
         **kwargs
@@ -719,10 +739,15 @@ class scProtVelo(VELOVI):
         anndata_fields = [
             LayerField(REGISTRY_KEYS.X_KEY, protein_layer, is_count_data=False),
             LayerField(REGISTRY_KEYS.U_KEY, rna_layer, is_count_data=False),
-            ObsmField(registry_key='glue_embedding', attr_key='X_glue',),
+            ObsmField(
+                registry_key="embedding",
+                attr_key=obsm_key,
+            ),
         ]
         if time_prior is not None:
-            anndata_fields += [NumericalObsField(registry_key='time_prior', attr_key='dpt_pseudotime')]
+            anndata_fields += [
+                NumericalObsField(registry_key="time_prior", attr_key="dpt_pseudotime")
+            ]
 
         adata_manager = AnnDataManager(
             fields=anndata_fields, setup_method_args=setup_method_args
