@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """Main module."""
+
 from typing import Callable, Iterable, Optional
 
 import numpy as np
@@ -128,8 +129,12 @@ class DecoderVELOVI(nn.Module):
         self.px_pi_decoder_up = nn.Linear(n_hidden, 2 * n_output)
         self.px_pi_decoder_down = nn.Linear(n_hidden, 2 * n_output)
 
-        self.px_rho_decoder_up = nn.Sequential(nn.Linear(n_hidden, n_output), nn.Sigmoid())
-        self.px_rho_decoder_down = nn.Sequential(nn.Linear(n_hidden, n_output), nn.Sigmoid())
+        self.px_rho_decoder_up = nn.Sequential(
+            nn.Linear(n_hidden, n_output), nn.Sigmoid()
+        )
+        self.px_rho_decoder_down = nn.Sequential(
+            nn.Linear(n_hidden, n_output), nn.Sigmoid()
+        )
 
     def forward(self, z: torch.Tensor, latent_dim: int = None):
         """
@@ -170,25 +175,30 @@ class DecoderVELOVI(nn.Module):
             px_rho_up = px_rho_up[:, 0].unsqueeze(1).repeat(1, px_rho_up.shape[1])
             px_rho_down = px_rho_up
 
-        px_rho = torch.concat([px_rho_up.unsqueeze(-1), px_rho_down.unsqueeze(-1)], axis=-1)
+        px_rho = torch.concat(
+            [px_rho_up.unsqueeze(-1), px_rho_down.unsqueeze(-1)], axis=-1
+        )
 
         # two times cells by genes by 2
         pi_first_up = self.pi_first_decoder_up(z)
         pi_first_down = self.pi_first_decoder_down(z)
 
         px_pi_up = nn.Softplus()(
-            torch.reshape(self.px_pi_decoder_up(pi_first_up), (z.shape[0], self.n_output, 2))
+            torch.reshape(
+                self.px_pi_decoder_up(pi_first_up), (z.shape[0], self.n_output, 2)
+            )
         )
 
         px_pi_down = nn.Softplus()(
-            torch.reshape(self.px_pi_decoder_down(pi_first_down), (z.shape[0], self.n_output, 2))
+            torch.reshape(
+                self.px_pi_decoder_down(pi_first_down), (z.shape[0], self.n_output, 2)
+            )
         )
 
         return px_pi_up, px_pi_down, px_rho
 
 
 class VELOVAE(BaseModuleClass):
-
     def __init__(
         self,
         n_input: int,
@@ -307,14 +317,18 @@ class VELOVAE(BaseModuleClass):
         n_genes = n_input * 2
 
         self.gamma_mean_unconstr = torch.nn.Parameter(-1 * torch.ones(n_input, 2))
-        self.kappa_mean_unconstr = torch.nn.Parameter(.5 * torch.ones(n_input, 2))
+        self.kappa_mean_unconstr = torch.nn.Parameter(0.5 * torch.ones(n_input, 2))
 
-        self.beta_mean_unconstr = torch.nn.Parameter(.5 * torch.ones(n_input, 2))
-        self.alpha_unconstr = torch.nn.Parameter(0 * torch.ones(n_input, 3))  # up, up for down, down
+        self.beta_mean_unconstr = torch.nn.Parameter(0.5 * torch.ones(n_input, 2))
+        self.alpha_unconstr = torch.nn.Parameter(
+            0 * torch.ones(n_input, 3)
+        )  # up, up for down, down
 
         self.switch_time_unconstr = torch.nn.Parameter(15 * torch.ones(n_input))
-        self.switch_time_ss_up_unconstr = torch.nn.Parameter(.2 * torch.ones(n_input))
-        self.switch_time_ss_down_unconstr = torch.nn.Parameter(.2 * torch.ones(n_input))
+        self.switch_time_ss_up_unconstr = torch.nn.Parameter(0.2 * torch.ones(n_input))
+        self.switch_time_ss_down_unconstr = torch.nn.Parameter(
+            0.2 * torch.ones(n_input)
+        )
 
         if self.use_time_prior:
             self.dpt_start_rna = torch.from_numpy(dpt_start_rna).to(device)
@@ -324,7 +338,9 @@ class VELOVAE(BaseModuleClass):
             self.dpt_start_prot = None
 
         # defines whether gene does induction or repression
-        self.px_pi_global = torch.nn.Parameter(self.dirichlet_concentration * torch.ones(n_input, 2))
+        self.px_pi_global = torch.nn.Parameter(
+            self.dirichlet_concentration * torch.ones(n_input, 2)
+        )
 
         # likelihood dispersion
         # for now, with normal dist, this is just the variance
@@ -402,7 +418,9 @@ class VELOVAE(BaseModuleClass):
     def generative(self, z, gamma, kappa, beta, alpha, pi_global, latent_dim=None):
         """Runs the generative model."""
         decoder_input = z
-        px_pi_alpha_up, px_pi_alpha_down, px_rho = self.decoder(decoder_input, latent_dim=latent_dim)
+        px_pi_alpha_up, px_pi_alpha_down, px_rho = self.decoder(
+            decoder_input, latent_dim=latent_dim
+        )
         px_pi_up = Dirichlet(px_pi_alpha_up).rsample()
         px_pi_down = Dirichlet(px_pi_alpha_down).rsample()
         pi_global = pi_global.unsqueeze(0).repeat(px_rho.shape[0], 1, 1)
@@ -457,14 +475,22 @@ class VELOVAE(BaseModuleClass):
         # component dist
         # states are rep_ss, ind, act_ss, rep
         if self.model_steady_states:
-            px_pi = torch.cat([px_pi_global[:, :, 0:1] * px_pi_up, px_pi_global[:, :, 1:2] * px_pi_down], dim=2)
+            px_pi = torch.cat(
+                [
+                    px_pi_global[:, :, 0:1] * px_pi_up,
+                    px_pi_global[:, :, 1:2] * px_pi_down,
+                ],
+                dim=2,
+            )
         else:
             px_pi = px_pi_global
 
         comp_dist = Categorical(probs=px_pi)
 
         # induction
-        t_offset = nn.Sigmoid()(self.switch_time_ss_up_unconstr) * self.flexible_switch_time
+        t_offset = (
+            nn.Sigmoid()(self.switch_time_ss_up_unconstr) * self.flexible_switch_time
+        )
         mean_u_ind, mean_s_ind = self._get_induction_rna_protein(
             alpha=alpha[:, 0],
             beta=beta[:, 0],
@@ -493,7 +519,10 @@ class VELOVAE(BaseModuleClass):
             p_0=zero_genes,
             time_offset=0,
         )
-        t_offset = torch.clamp(self.switch_time_ss_down_unconstr, max=1) * self.flexible_switch_time
+        t_offset = (
+            torch.clamp(self.switch_time_ss_down_unconstr, max=1)
+            * self.flexible_switch_time
+        )
         mean_u_rep, mean_s_rep = self._get_induction_rna_protein(
             alpha=alpha[:, 2],
             beta=beta[:, 1],
@@ -509,66 +538,94 @@ class VELOVAE(BaseModuleClass):
         mean_s_ind_steady = p_0.expand(n_cells, self.n_input)
 
         scale_u = scale[: self.n_input, :].expand(n_cells, self.n_input, 2).sqrt()
-        scale_s = scale[self.n_input:, :].expand(n_cells, self.n_input, 2).sqrt()
+        scale_s = scale[self.n_input :, :].expand(n_cells, self.n_input, 2).sqrt()
 
         if self.dpt_start_rna is not None:
-            end_penalty_up = (self.lower_start_rna - self.dpt_start_rna).pow(2).mean() + \
-                             (self.lower_start_prot - self.dpt_start_prot).pow(2).mean()
+            end_penalty_up = (self.lower_start_rna - self.dpt_start_rna).pow(
+                2
+            ).mean() + (self.lower_start_prot - self.dpt_start_prot).pow(2).mean()
         else:
-            end_penalty_up = (self.lower_start_rna - self.lower_ss_rna).pow(2).mean() \
-                             + (self.lower_start_prot - self.lower_ss_prot).pow(2).mean()
+            end_penalty_up = (self.lower_start_rna - self.lower_ss_rna).pow(
+                2
+            ).mean() + (self.lower_start_prot - self.lower_ss_prot).pow(2).mean()
 
         if self.dpt_start_rna is not None:
-            end_penalty_down = (r_0 - self.dpt_start_rna).pow(2).mean() + \
-                               (p_0 - self.dpt_start_prot).pow(2).mean()
+            end_penalty_down = (r_0 - self.dpt_start_rna).pow(2).mean() + (
+                p_0 - self.dpt_start_prot
+            ).pow(2).mean()
         else:
-            end_penalty_down = (r_0 - self.upper_ss_rna).pow(2).mean() \
-            + (p_0 - self.upper_ss_prot).pow(2).mean()
+            end_penalty_down = (r_0 - self.upper_ss_rna).pow(2).mean() + (
+                p_0 - self.upper_ss_prot
+            ).pow(2).mean()
 
         end_penalty = end_penalty_up + end_penalty_down
 
         if self.model_steady_states:
-            mean_u = torch.stack([
-                mean_u_rep_steady,
-                mean_u_ind,
-                mean_u_ind_steady,
-                mean_u_rep,
-            ], dim=2)
-            scale_u = torch.stack([
-                scale_u[..., 0],
-                scale_u[..., 0],
-                scale_u[..., 0],
-                scale_u[..., 0],
-            ], dim=2)
-            mean_s = torch.stack([
-                mean_s_rep_steady,
-                mean_s_ind,
-                mean_s_ind_steady,
-                mean_s_rep,
-            ], dim=2)
-            scale_s = torch.stack([
-                scale_s[..., 0],
-                scale_s[..., 0],
-                scale_s[..., 0],
-                scale_s[..., 0],
-            ], dim=2)
+            mean_u = torch.stack(
+                [
+                    mean_u_rep_steady,
+                    mean_u_ind,
+                    mean_u_ind_steady,
+                    mean_u_rep,
+                ],
+                dim=2,
+            )
+            scale_u = torch.stack(
+                [
+                    scale_u[..., 0],
+                    scale_u[..., 0],
+                    scale_u[..., 0],
+                    scale_u[..., 0],
+                ],
+                dim=2,
+            )
+            mean_s = torch.stack(
+                [
+                    mean_s_rep_steady,
+                    mean_s_ind,
+                    mean_s_ind_steady,
+                    mean_s_rep,
+                ],
+                dim=2,
+            )
+            scale_s = torch.stack(
+                [
+                    scale_s[..., 0],
+                    scale_s[..., 0],
+                    scale_s[..., 0],
+                    scale_s[..., 0],
+                ],
+                dim=2,
+            )
         else:
-            mean_u = torch.stack([
-                mean_u_ind,
-                mean_u_rep,
-            ], dim=2)
-            scale_u = torch.stack([
-                scale_u[..., 0],
-                scale_u[..., 0],
-            ], dim=2)
-            mean_s = torch.stack([
-                mean_s_ind,
-                mean_s_rep,
-            ], dim=2)
-            scale_s = torch.stack([
-                scale_s[..., 0],
-                scale_s[..., 0],
-            ], dim=2)
+            mean_u = torch.stack(
+                [
+                    mean_u_ind,
+                    mean_u_rep,
+                ],
+                dim=2,
+            )
+            scale_u = torch.stack(
+                [
+                    scale_u[..., 0],
+                    scale_u[..., 0],
+                ],
+                dim=2,
+            )
+            mean_s = torch.stack(
+                [
+                    mean_s_ind,
+                    mean_s_rep,
+                ],
+                dim=2,
+            )
+            scale_s = torch.stack(
+                [
+                    scale_s[..., 0],
+                    scale_s[..., 0],
+                ],
+                dim=2,
+            )
 
         dist_u = Normal(mean_u, scale_u)
         dist_s = Normal(mean_s, scale_s)
@@ -578,16 +635,22 @@ class VELOVAE(BaseModuleClass):
 
         return mixture_dist_s, mixture_dist_u, end_penalty
 
-    def _get_induction_rna_protein(self, alpha, beta, kappa, gamma, t, r_0, p_0, time_offset=0):
+    def _get_induction_rna_protein(
+        self, alpha, beta, kappa, gamma, t, r_0, p_0, time_offset=0
+    ):
         t_switch = time_offset
         t_orig = t
         t = t - t_switch
         rna = r_0 * torch.exp(-beta * t) + (alpha / beta) * (1 - torch.exp(-beta * t))
 
-        protein = p_0 * torch.exp(-gamma * t) + alpha * kappa / beta / gamma * (
-            1 - torch.exp(-gamma * t)
-        ) + kappa * (r_0 * beta - alpha) / beta / (gamma - beta + 1e-6) * (
-            torch.exp(-beta * t) - torch.exp(-gamma * t)
+        protein = (
+            p_0 * torch.exp(-gamma * t)
+            + alpha * kappa / beta / gamma * (1 - torch.exp(-gamma * t))
+            + kappa
+            * (r_0 * beta - alpha)
+            / beta
+            / (gamma - beta + 1e-6)
+            * (torch.exp(-beta * t) - torch.exp(-gamma * t))
         )
 
         protein[:, gamma == beta] = 0
@@ -613,9 +676,8 @@ class VELOVAE(BaseModuleClass):
 
 
 class VeloVAEPaired(VELOVAE):
-
     def _get_inference_input(self, tensors):
-        glue = tensors['glue_embedding']
+        glue = tensors["glue_embedding"]
 
         input_dict = dict(
             glue=glue,
@@ -647,7 +709,14 @@ class VeloVAEPaired(VELOVAE):
         gamma, kappa, beta, alpha, pi_global = self._get_rates()
 
         outputs = dict(
-            z=z, qz_m=qz_m, qz_v=qz_v, gamma=gamma, kappa=kappa, beta=beta, alpha=alpha, pi_global=pi_global
+            z=z,
+            qz_m=qz_m,
+            qz_v=qz_v,
+            gamma=gamma,
+            kappa=kappa,
+            beta=beta,
+            alpha=alpha,
+            pi_global=pi_global,
         )
         return outputs
 
@@ -665,10 +734,10 @@ class VeloVAEPaired(VELOVAE):
         qz_m = inference_outputs["qz_m"]
         qz_v = inference_outputs["qz_v"]
 
-        alpha = inference_outputs['alpha']
-        beta = inference_outputs['beta']
-        kappa = inference_outputs['kappa']
-        gamma = inference_outputs['gamma']
+        alpha = inference_outputs["alpha"]
+        beta = inference_outputs["beta"]
+        kappa = inference_outputs["kappa"]
+        gamma = inference_outputs["gamma"]
 
         # dirichlet parameters
         px_pi_alpha_up = generative_outputs["px_pi_alpha_up"]
@@ -681,7 +750,7 @@ class VeloVAEPaired(VELOVAE):
         px_rho = generative_outputs["px_rho"]
 
         if self.use_time_prior and self.shared_time:
-            time_prior = tensors['time_prior']
+            time_prior = tensors["time_prior"]
             time_loss = torch.nn.MSELoss()(time_prior, px_rho[:, :1, 0])
         else:
             time_loss = 0
@@ -700,7 +769,9 @@ class VeloVAEPaired(VELOVAE):
         ).mean()
 
         prior_params = torch.from_numpy(
-            np.array([self.dirichlet_concentration, self.dirichlet_concentration])[None, None, :]
+            np.array([self.dirichlet_concentration, self.dirichlet_concentration])[
+                None, None, :
+            ]
         ).to(px_pi_alpha_up.device) * torch.ones_like(px_pi_alpha_up)
 
         # motivate clear assignment of a cell to either rep ss or activation (weighted equally)
@@ -715,9 +786,11 @@ class VeloVAEPaired(VELOVAE):
             Dirichlet(prior_params),
         ).sum(dim=-1)
 
-        weighted_kl_local = self.kl_z_scaling * kl_weight * kl_divergence_z \
-                            + kl_pi_global * self.kl_scaling  \
-                            + (kl_pi_up + kl_pi_down) * self.kl_ss_scaling
+        weighted_kl_local = (
+            self.kl_z_scaling * kl_weight * kl_divergence_z
+            + kl_pi_global * self.kl_scaling
+            + (kl_pi_up + kl_pi_down) * self.kl_ss_scaling
+        )
 
         local_loss = torch.mean(reconst_loss + weighted_kl_local)
 
@@ -730,7 +803,9 @@ class VeloVAEPaired(VELOVAE):
         param_loss_rna[mask] = 0
         param_loss += param_loss_rna.mean()
 
-        param_loss_prot = my_relu(p0 - kappa[:, 0] / gamma[:, 0] * r0)   # will stay constantly positive in case of r0=0 and p0 > 0
+        param_loss_prot = my_relu(
+            p0 - kappa[:, 0] / gamma[:, 0] * r0
+        )  # will stay constantly positive in case of r0=0 and p0 > 0
 
         mask = gamma[:, 0] == 0
         param_loss_prot[mask] = 0
@@ -751,7 +826,9 @@ class VeloVAEPaired(VELOVAE):
             time_offset=0,
         )
 
-        param_loss_alpha = my_relu(alpha[:, 2] - beta[:, 1] * r_0_down)  # i want the reduced transcription rate to result in a downregulation of at least the rna
+        param_loss_alpha = my_relu(
+            alpha[:, 2] - beta[:, 1] * r_0_down
+        )  # i want the reduced transcription rate to result in a downregulation of at least the rna
         param_loss += param_loss_alpha.mean()
 
         global_loss = 0
