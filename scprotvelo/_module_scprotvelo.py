@@ -677,7 +677,7 @@ class VELOVAE(BaseModuleClass):
 
 class VeloVAEPaired(VELOVAE):
     def _get_inference_input(self, tensors):
-        glue = tensors["glue_embedding"]
+        glue = tensors[REGISTRY_KEYS.EMBEDDING_KEY]
 
         input_dict = dict(
             glue=glue,
